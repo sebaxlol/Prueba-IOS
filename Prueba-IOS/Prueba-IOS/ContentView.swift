@@ -15,33 +15,46 @@ struct User: Codable, Hashable {
 }
 
 struct ContentView: View {
-    @State private var searchText: String = ""
+    @State private var filter: String = ""
+    @State private var users: [User] = []
     @State private var filteredUsers: [User] = []
     
     var body: some View {
         NavigationView {
             VStack {
-                SearchBar(text: $searchText, placeholder: "Buscar usuario")
-                List(filteredUsers, id: \.self) { user in
-                    NavigationLink(destination: UserView(id: user.id)) {
-                        VStack(alignment: .leading) {
-                            Text(user.name)
-                                .font(.headline)
-                            HStack {
-                                Image(systemName: "phone")
-                                Text(user.phone)
+                SearchBar(text: $filter, placeholder: "Buscar usuario")
+                if filteredUsers.isEmpty {
+                                Text("List is empty")
+                            } else {
+                                List(filteredUsers, id: \.self) { user in
+                                    NavigationLink(destination: UserView(id: user.id)) {
+                                        VStack(alignment: .leading) {
+                                            Text(user.name)
+                                                .font(.headline)
+                                            HStack {
+                                                Image(systemName: "phone")
+                                                Text(user.phone)
+                                            }
+                                            HStack {
+                                                Image(systemName: "envelope")
+                                                Text(user.email)
+                                            }
+                                        }
+                                    }
+                                }.navigationBarTitle("Usuarios")
                             }
-                            HStack {
-                                Image(systemName: "envelope")
-                                Text(user.email)
-                            }
+                            
                         }
-                    }
-                }
-                .navigationBarTitle("Usuarios")
+                        .onAppear {
+                            fetchUsers()
             }
-            .onAppear {
-                fetchUsers()
+        
+            .onChange(of: filter) { newValue in
+                if newValue.isEmpty {
+                    filteredUsers = users
+                } else {
+                    filteredUsers = users.filter { $0.name.lowercased().contains(newValue.lowercased()) }
+                }
             }
         }
     }
@@ -68,6 +81,7 @@ struct ContentView: View {
                 let users = try decoder.decode([User].self, from: data)
                 
                 DispatchQueue.main.async {
+                    self.users = users
                     self.filteredUsers = users
                 }
             } catch {
