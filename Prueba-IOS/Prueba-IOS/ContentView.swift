@@ -14,54 +14,57 @@ struct User: Codable, Hashable {
     var email: String
 }
 
+struct Post: Codable, Hashable {
+    var id: Int
+    var userId: Int
+    var title: String
+    var body: String
+}
+
 struct ContentView: View {
-    @State private var filter: String = ""
-    @State private var users: [User] = []
+    @State private var searchText: String = ""
     @State private var filteredUsers: [User] = []
+    @State private var allUsers: [User] = []
+    @State private var showEmptyListMessage = false
     
     var body: some View {
         NavigationView {
             VStack {
-                SearchBar(text: $filter, placeholder: "Buscar usuario")
-                if filteredUsers.isEmpty {
-                                Text("List is empty")
-                            } else {
-                                List(filteredUsers, id: \.self) { user in
-                                    NavigationLink(destination: UserView(id: user.id)) {
-                                        VStack(alignment: .leading) {
-                                            Text(user.name)
-                                                .font(.headline)
-                                            HStack {
-                                                Image(systemName: "phone")
-                                                Text(user.phone)
-                                            }
-                                            HStack {
-                                                Image(systemName: "envelope")
-                                                Text(user.email)
-                                            }
-                                        }
-                                    }
-                                }.navigationBarTitle("Usuarios")
-                            }
-                            
-                        }
-                        .onAppear {
-                            fetchUsers()
-            }
-        
-            .onChange(of: filter) { newValue in
-                if newValue.isEmpty {
-                    filteredUsers = users
+                SearchBar(text: $searchText, placeholder: "Buscar usuario")
+                if showEmptyListMessage {
+                    Text("La lista está vacía")
                 } else {
-                    filteredUsers = users.filter { $0.name.lowercased().contains(newValue.lowercased()) }
+                    List(filteredUsers, id: \.self) { user in
+                        NavigationLink(destination: UserView(id: user.id, name: user.name, phone: user.phone, email: user.email)) {
+                            VStack(alignment: .leading) {
+                                Text(user.name)
+                                    .font(.headline)
+                                HStack {
+                                    Image(systemName: "phone")
+                                    Text(user.phone)
+                                }
+                                HStack {
+                                    Image(systemName: "envelope")
+                                    Text(user.email)
+                                }
+                            }
+                        }
+                    }.navigationBarTitle("Usuarios")
                 }
+                
+            }
+            .onAppear {
+                fetchUsers()
+            }
+            .onChange(of: searchText) { _ in
+                filterUsers()
             }
         }
     }
     
     func fetchUsers() {
         guard let url = URL(string: "https://jsonplaceholder.typicode.com/users") else {
-            print("Invalid URL")
+            print("URL inválida")
             return
         }
         
@@ -72,7 +75,7 @@ struct ContentView: View {
             }
             
             guard let data = data else {
-                print("No data returned from API")
+                print("No se ha recibido información de la API")
                 return
             }
             
@@ -81,14 +84,28 @@ struct ContentView: View {
                 let users = try decoder.decode([User].self, from: data)
                 
                 DispatchQueue.main.async {
-                    self.users = users
+                    self.allUsers = users
                     self.filteredUsers = users
                 }
             } catch {
-                print("Error decoding JSON: \(error.localizedDescription)")
+                print("Error al decodificar el JSON: \(error.localizedDescription)")
             }
         }
         
         task.resume()
+    }
+    
+    private func filterUsers() {
+        if searchText.isEmpty {
+            filteredUsers = allUsers
+            showEmptyListMessage = false
+            return
+        }
+        
+        filteredUsers = allUsers.filter { user in
+            return user.name.localizedCaseInsensitiveContains(searchText)
+        }
+        
+        showEmptyListMessage = filteredUsers.isEmpty
     }
 }

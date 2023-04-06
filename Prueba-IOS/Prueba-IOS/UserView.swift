@@ -4,57 +4,76 @@
 //
 //  Created by Desarrollo TEAM on 6/04/23.
 //
-
-import Foundation
 import SwiftUI
 
 struct UserView: View {
     let id: Int
-    @State var apiData: [ApiData]?
-
+    let name: String
+    let phone: String
+    let email: String
+    
+    @State private var posts: [Post] = []
+    
     var body: some View {
-        VStack {
-            if let data = apiData {
-                List(data, id: \.id) { item in
+        VStack(alignment: .leading) {
+            Text(name)
+                .font(.title)
+            HStack {
+                Image(systemName: "phone")
+                Text(phone)
+            }
+            HStack {
+                Image(systemName: "envelope")
+                Text(email)
+            }
+            
+            if posts.isEmpty {
+                ProgressView()
+            } else {
+                List(posts, id: \.id) { post in
                     VStack(alignment: .leading) {
-                        Text(item.title)
-                        Text(item.body)
+                        Text(post.title)
+                            .font(.headline)
+                        Text(post.body)
                     }
                 }
-            } else {
-                Text("Loading...")
             }
         }
+        .padding()
         .onAppear {
-            loadData()
+            fetchPosts()
         }
     }
-
-    func loadData() {
+    
+    func fetchPosts() {
         guard let url = URL(string: "https://jsonplaceholder.typicode.com/posts?userId=\(id)") else {
             print("Invalid URL")
             return
         }
-
-        let request = URLRequest(url: url)
-
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            if let data = data {
-                if let decodedResponse = try? JSONDecoder().decode([ApiData].self, from: data) {
-                    DispatchQueue.main.async {
-                        apiData = decodedResponse
-                    }
-                    return
-                }
+        
+        let task = URLSession.shared.dataTask(with: url) { (data, response, error) in
+            if let error = error {
+                print("Error: \(error.localizedDescription)")
+                return
             }
-
-            print("Fetch failed: \(error?.localizedDescription ?? "Unknown error")")
-        }.resume()
+            
+            guard let data = data else {
+                print("No data returned from API")
+                return
+            }
+            
+            do {
+                let decoder = JSONDecoder()
+                let posts = try decoder.decode([Post].self, from: data)
+                
+                DispatchQueue.main.async {
+                    self.posts = posts
+                }
+            } catch {
+                print("Error decoding JSON: \(error.localizedDescription)")
+            }
+        }
+        
+        task.resume()
     }
-}
-
-struct ApiData: Codable, Identifiable {
-    let id: Int
-    let title: String
-    let body: String
 }
