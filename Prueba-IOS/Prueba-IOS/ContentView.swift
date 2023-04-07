@@ -22,17 +22,19 @@ struct Post: Codable, Hashable {
 }
 
 struct ContentView: View {
-    @State private var searchText: String = ""
-    @State private var filteredUsers: [User] = []
-    @State private var allUsers: [User] = []
-    @State private var showEmptyListMessage = false
+    @State var searchText: String = ""
+    @State var filteredUsers: [User] = []
+    @State var allUsers: [User] = []
+    @State var showEmptyListMessage = false
+    
+    internal let userDefaultsKey = "users"
     
     var body: some View {
         NavigationView {
             VStack {
                 SearchBar(text: $searchText, placeholder: "Buscar usuario")
                 if showEmptyListMessage {
-                    Text("La lista está vacía")
+                    Text("List is empty")
                 } else {
                     List(filteredUsers, id: \.self) { user in
                         NavigationLink(destination: UserView(id: user.id, name: user.name, phone: user.phone, email: user.email)) {
@@ -54,17 +56,33 @@ struct ContentView: View {
                 
             }
             .onAppear {
-                fetchUsers()
+                loadUsers()
             }
-            .onChange(of: searchText) { _ in
-                filterUsers()
+            .onChange(of: searchText) { searchText in
+                filterUsers(searchText)
             }
+        }
+    }
+    
+    func loadUsers() {
+        if let data = UserDefaults.standard.data(forKey: userDefaultsKey),
+           let users = try? JSONDecoder().decode([User].self, from: data) {
+            filteredUsers = users
+            allUsers = users
+        } else {
+            fetchUsers()
+        }
+    }
+    
+    func saveUsers(_ users: [User]) {
+        if let data = try? JSONEncoder().encode(users) {
+            UserDefaults.standard.set(data, forKey: userDefaultsKey)
         }
     }
     
     func fetchUsers() {
         guard let url = URL(string: "https://jsonplaceholder.typicode.com/users") else {
-            print("URL inválida")
+            print("Invalid URL")
             return
         }
         
@@ -75,7 +93,7 @@ struct ContentView: View {
             }
             
             guard let data = data else {
-                print("No se ha recibido información de la API")
+                print("No data returned from API")
                 return
             }
             
@@ -84,28 +102,35 @@ struct ContentView: View {
                 let users = try decoder.decode([User].self, from: data)
                 
                 DispatchQueue.main.async {
-                    self.allUsers = users
                     self.filteredUsers = users
+                    self.allUsers = users
+                    self.saveUsers(users)
                 }
             } catch {
-                print("Error al decodificar el JSON: \(error.localizedDescription)")
+                print("Error decoding JSON: \(error.localizedDescription)")
             }
         }
         
         task.resume()
     }
     
-    private func filterUsers() {
+    func filterUsers(_ searchText: String) {
         if searchText.isEmpty {
             filteredUsers = allUsers
             showEmptyListMessage = false
             return
         }
         
-        filteredUsers = allUsers.filter { user in
+        let filtered = allUsers.filter { user in
             return user.name.localizedCaseInsensitiveContains(searchText)
         }
         
-        showEmptyListMessage = filteredUsers.isEmpty
+        if filtered.isEmpty {
+            showEmptyListMessage = true
+        } else {
+            showEmptyListMessage = false
+        }
+        
+        filteredUsers = filtered
     }
 }
